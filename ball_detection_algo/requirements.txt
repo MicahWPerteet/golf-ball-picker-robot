@@ -1,0 +1,10 @@
+# Computer-vision deps for the golf-ball detector.
+#
+# Works on any Python 3.9-3.14: opencv-python ships an abi3 wheel and numpy has
+# per-version wheels, so `pip install` uses prebuilt binaries (no source build).
+# The Raspberry Pi 5 (Raspberry Pi OS Bookworm) ships Python 3.11, which is also
+# covered, so the same requirements install on the laptop and the robot.
+#
+# On the RP5 (Bookworm) a venv is required (PEP 668):  python3 -m venv .venv
+opencv-python>=4.9,<5
+numpy>=1.26,<3

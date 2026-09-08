@@ -1,0 +1,8 @@
+# Normalize text to LF in the repo. The CV scripts run on the RP5 (Linux), so
+# LF is the canonical form even though most of us edit on Windows.
+* text=auto eol=lf
+
+# CAD / mesh assets are binary: never touch line endings, never try to diff.
+*.blend  binary
+*.blend1 binary
+*.stl    binary
