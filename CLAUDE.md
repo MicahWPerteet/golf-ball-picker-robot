@@ -18,31 +18,56 @@ This is an **early-stage repository**: planning docs, CAD, and the first compute
 
 - **Controller: Raspberry Pi 5**, chosen over the ESP32-P4 primarily for its Linux/Python/OpenCV vision ecosystem, built-in Wi-Fi, and lower project risk. The RP5 is the high-level brain; a **custom KiCad PCB** handles power distribution, motor-driver interfaces, and charging/docking — this is where the embedded-systems learning goal lives.
 - **Drivetrain:** planned four-wheel drive with 4+ motor drivers. Keep **motor power and logic/computer power on separate rails**.
-- **Vision:** on-board camera + CV detection is a high-value but *not top-priority* capability (priority #4). Hardware reliability — drivetrain, collection, return-to-dock — comes first.
+- **Vision:** YOLO11n neural detection is the primary path, with classical CV retained as a
+  selectable fallback (see section 5 of the plan doc for the decision record). Still a
+  high-value but *not top-priority* capability (priority #4) — hardware reliability
+  (drivetrain, collection, return-to-dock) comes first.
 
 ## Computer-vision module (`ball_detection_algo/`)
 
-v1 detects white golf balls in a USB-webcam feed and draws a bounding box around
-each. Written to run **unchanged on the RP5** (Linux/V4L2); the Windows laptop is just
-the dev box. See `ball_detection_algo/README.md` for full usage.
+Detects golf balls in a USB-webcam feed and draws a bounding box around each.
+Written to run **unchanged on the RP5** (Linux/V4L2); the laptop is just the dev box.
+See `ball_detection_algo/README.md` for full usage.
 
-**Design (deliberate, don't flatten it):** detection is **classical CV, not ML** — HSV
-white-thresholding + morphology + contour shape-gating (area, circularity, fill-ratio).
-The core is a **pure `detect_golf_balls(frame, params) -> list[Detection]`** in
-`detector.py` (no camera/window/disk), so it's testable on still images and drops into the
-autonomous state machine (…→ scan → navigate →…) as an isolated node. Camera capture,
-tuning, and display live in separate scripts that call into it. All thresholds live in one
-`DetectorParams` dataclass, which serializes to/from JSON (`params.json`). `params.json` is git-ignored — it is per-camera, per-lighting calibration output, so each machine generates its own with `calibrate.py`.
+**Design (deliberate, don't flatten it):** there are **two interchangeable backends**
+behind one contract, `detector(frame) -> list[Detection]`, selected with `--backend`:
+
+- **`classical`** — HSV white-thresholding + morphology + contour shape-gating (area,
+  circularity, fill-ratio). Lives in `detector.py` as a **pure
+  `detect_golf_balls(frame, params)`** (no camera/window/disk). All thresholds sit in one
+  `DetectorParams` dataclass serialized to `params.json`, which is git-ignored because it is
+  per-camera, per-lighting output of `calibrate.py`.
+- **`yolo`** — Ultralytics YOLO11n in `yolo_detector.py`. A **callable object, not a pure
+  function**, because the model must be loaded once and reused across frames.
+
+`backends.py` holds the `make_detector()` factory and the shared CLI flags, and is the only
+module importing both. **`detector.py` must never import `ultralytics` or `torch`** — that
+separation is what keeps the classical path runnable on a bare OpenCV install, which is the
+fallback if RP5 inference is too slow. The ML import is deferred into `YoloDetector.__init__`.
+
+Detection stays an isolated node in the autonomous state machine (…→ scan → navigate →…);
+swapping backends does not touch navigation. Camera capture, tuning, and display live in
+separate scripts that call into the factory.
 
 **Environment:** a venv lives at `ball_detection_algo/.venv`. Run scripts with
 `.venv\Scripts\python.exe` (Windows) / `.venv/bin/python` (RP5). `pip install -r
 requirements.txt` pulls prebuilt wheels on any Python 3.9–3.14 (OpenCV ships an abi3 wheel);
-no version pin is needed despite the local Python being 3.14.
+no version pin is needed despite the local Python being 3.14. **`requirements-yolo.txt` is
+separate and optional** — it adds `ultralytics` (and torch, which is large). Keep the base
+requirements file free of ML dependencies.
 
 **Typical workflow:** `list_cameras.py` (find the USB cam's index — it is *not* the laptop's
-built-in) → `calibrate.py --camera N` (box a few real balls; it derives thresholds and writes
-`params.json`) → `run_webcam.py --camera N --params params.json`. `tune.py` is the manual
-slider fallback; `test_image.py` runs the detector on a still photo.
+built-in) → then either `calibrate.py --camera N` → `run_webcam.py --camera N --params
+params.json` for the classical path, or `run_webcam.py --camera N --backend yolo` for the
+neural one. `tune.py` is the manual slider fallback; `test_image.py` runs either backend on a
+still photo; `benchmark.py` compares both over a folder; `capture_dataset.py` collects
+training images.
+
+**YOLO status:** `--backend yolo` currently runs **zero-shot** on stock COCO weights,
+filtered to class 32 (`sports ball`), which needs no labelled data. A custom single-class
+model is milestone 2 and requires a dataset that does not exist yet — the repo contains no
+golf-ball imagery at all. With a fine-tuned model, pass `--coco-class -1` to disable the
+filter, since a single-class model has no class 32.
 
 **Gotchas (hard-won, keep):**
 - **Windows capture backend must be DirectShow (`CAP_DSHOW`), not MSMF** — MSMF is slow to
@@ -53,7 +78,13 @@ slider fallback; `test_image.py` runs the detector on a still photo.
   background — a backgrounded process has no interactive desktop, so its OpenCV window never
   receives keystrokes and the tool aborts.
 - White-ball detection is lighting-sensitive; prefer `calibrate.py` over hand-tuning, and
-  re-calibrate when lighting changes.
+  re-calibrate when lighting changes. Calibrate at the distance the robot actually sees balls
+  from — boxing balls held close to the camera sets a `min_area` floor that silently rejects
+  everything on the far half of the green.
+- **Distant balls are hard for YOLO too**, not just for the classical gates: at `--imgsz 640`
+  a 720p frame is halved, so a 15 px ball lands near the stride-8 head's limit. Raise
+  `--imgsz`, or let the scan → navigate loop drive closer and re-scan (preferred; no model
+  change).
 - **USB webcam ⇒ `cv2.VideoCapture` is the portable path.** If the team ever switches to the
   RP5 **CSI camera module**, that needs Picamera2/libcamera instead — only the capture call
   changes, `detect_golf_balls()` does not.

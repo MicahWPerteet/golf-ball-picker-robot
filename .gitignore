@@ -32,3 +32,12 @@ desktop.ini
 *.mp4
 *.avi
 captures/
+
+# --- ML models / training output ---
+# Same reasoning as the CAD binaries above: large, opaque, and they never diff
+# usefully. Trained weights are shared out-of-band; stock weights re-download.
+*.pt
+*.onnx
+*_ncnn_model/
+runs/
+datasets/

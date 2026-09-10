@@ -1,14 +1,19 @@
-"""Live white-golf-ball detector on the USB webcam.
+"""Live golf-ball detector on the USB webcam.
 
-Opens the camera you point it at, runs the detector on each frame, and draws a
-green box around every white golf ball. This is the entry point that will run on
-the Raspberry Pi 5 (add --no-display when the robot is headless).
+Opens the camera you point it at, runs the selected detection backend on each
+frame, and draws a green box around every golf ball. This is the entry point that
+will run on the Raspberry Pi 5 (add --no-display when the robot is headless).
 
 Usage:
-    python run_webcam.py --camera 1                 # laptop USB webcam
-    python run_webcam.py --camera 0 --no-display    # headless RP5
-    python run_webcam.py --camera 1 --save last.jpg # also save the latest annotated frame
+    python run_webcam.py --camera 1                        # classical CV (default)
+    python run_webcam.py --camera 1 --params params.json   # classical, tuned
+    python run_webcam.py --camera 1 --backend yolo         # zero-shot YOLO11n
+    python run_webcam.py --camera 0 --no-display           # headless RP5
+    python run_webcam.py --camera 1 --save last.jpg        # save latest annotated frame
 Press 'q' in the window to quit.
+
+The backend is chosen at startup and then called identically every frame, so
+detection stays a swappable node for the autonomous state machine.
 """
 
 from __future__ import annotations
@@ -18,8 +23,9 @@ import time
 
 import cv2
 
+from backends import add_detector_args, detector_from_args
 from camera import open_camera
-from detector import DetectorParams, detect_golf_balls, draw_detections
+from detector import draw_detections
 
 
 def main() -> None:
@@ -32,13 +38,10 @@ def main() -> None:
                         help="don't open a window (headless robot)")
     parser.add_argument("--save", metavar="PATH", default=None,
                         help="write the latest annotated frame to this path each loop")
-    parser.add_argument("--params", metavar="PATH", default=None,
-                        help="load tuned thresholds from a JSON file (see calibrate.py)")
+    add_detector_args(parser)
     args = parser.parse_args()
 
-    params = DetectorParams.load(args.params) if args.params else DetectorParams()
-    if args.params:
-        print(f"Loaded params from {args.params}")
+    detect = detector_from_args(args)
     cap = open_camera(args.camera, args.width, args.height)
 
     print(f"Camera {args.camera} opened. Press 'q' to quit." if args.display
@@ -53,7 +56,7 @@ def main() -> None:
                 print("Dropped frame; retrying...")
                 continue
 
-            detections = detect_golf_balls(frame, params)
+            detections = detect(frame)
             annotated = draw_detections(frame, detections)
 
             frames += 1

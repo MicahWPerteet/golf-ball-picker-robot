@@ -1,0 +1,44 @@
+# OPTIONAL: the YOLO detection backend (--backend yolo).
+#
+# Kept separate from requirements.txt on purpose. `ultralytics` pulls in torch,
+# which is large and slow to import. The classical detector must stay installable
+# and runnable without it, because it is the fallback if inference proves too
+# slow on the Raspberry Pi 5.
+#
+# ---------------------------------------------------------------------------
+# INSTALL CPU-ONLY TORCH FIRST. This matters.
+# ---------------------------------------------------------------------------
+# Installing this file directly drags in torch's default CUDA build: the wheel,
+# cuDNN, and the NVIDIA runtime libraries total several GB. Neither our dev
+# machines nor the Raspberry Pi 5 has an NVIDIA GPU, so all of it is dead weight
+# (and it will not fit comfortably on a Pi SD card).
+#
+# Two steps, in this order:
+#
+#     pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+#     pip install -r requirements-yolo.txt
+#
+# The second command sees torch already satisfied and leaves it alone.
+# We do not pin the CPU index in this file because the same index cannot also
+# resolve ultralytics.
+#
+# If you install it the wrong way round and need to clean up, note that removing
+# the nvidia-* and cuda-* packages is not enough: the CUDA build also pulls in
+# `triton` (~900 MB), an NVIDIA GPU compiler that CPU-only torch does not need.
+# Uninstall that too, and force-reinstall torchvision, whose files can be left
+# broken by the churn:
+#
+#     pip uninstall -y triton
+#     pip install --force-reinstall --no-deps \
+#         --index-url https://download.pytorch.org/whl/cpu torchvision
+#
+# Training is a separate matter: do it off-robot on a machine (or Colab) that
+# does have CUDA, then bring back only the trained weights.
+#
+# ---------------------------------------------------------------------------
+# For the RP5, export the trained model to NCNN and load the exported directory
+# with the same --model flag. NCNN is noticeably faster than PyTorch on ARM.
+#
+# ultralytics is AGPL-3.0. Fine for academic capstone work; worth a line in the
+# report's licensing section.
+ultralytics>=8.3,<9
