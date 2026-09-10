@@ -73,13 +73,24 @@ class DetectorParams:
 
 @dataclass
 class Detection:
-    """One detected ball, in ORIGINAL-frame pixel coordinates."""
+    """One detected ball, in ORIGINAL-frame pixel coordinates.
+
+    Shared by every detection backend (see backends.py) so that navigation and
+    the autonomous state machine never learn which detector produced a box.
+
+    The two score fields are backend-specific and only one is ever meaningful:
+      * `circularity` is a classical-CV shape measurement; YOLO leaves it None.
+      * `confidence` is a model score; the classical path leaves it 1.0, since
+        it makes a hard accept/reject decision on each contour.
+    """
 
     x: int
     y: int
     w: int
     h: int
-    circularity: float
+    circularity: float | None = None
+    confidence: float = 1.0
+    label: str = "ball"
 
     @property
     def center(self) -> tuple[int, int]:
@@ -253,7 +264,9 @@ def draw_detections(frame_bgr: np.ndarray, detections: list[Detection]) -> np.nd
     out = frame_bgr.copy()
     for det in detections:
         cv2.rectangle(out, (det.x, det.y), (det.x + det.w, det.y + det.h), (0, 255, 0), 2)
-        label = f"ball {det.circularity:.2f}"
+        # Show whichever score the producing backend actually filled in.
+        score = det.circularity if det.circularity is not None else det.confidence
+        label = f"{det.label} {score:.2f}"
         y_text = det.y - 8 if det.y - 8 > 10 else det.y + det.h + 18
         cv2.putText(
             out, label, (det.x, y_text),

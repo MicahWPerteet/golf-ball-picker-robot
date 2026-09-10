@@ -13,7 +13,7 @@ The current concept is a periodically operating robot rather than a machine that
 | Subsystem | Current direction |
 |---|---|
 | Central computer | Raspberry Pi 5 (RP5) — new team choice |
-| Vision | On-board camera connected to the RP5; computer vision for ball detection is a major capability/bonus goal |
+| Vision | On-board camera connected to the RP5; YOLO11n neural detection with a classical-CV fallback (see section 5) |
 | Drive | Potential four-wheel-drive drivetrain with at least four motor drivers |
 | Ball collection | Mechanical collection system mounted on the robot |
 | Ball cleaning | Potential cleaning mechanism |
@@ -45,7 +45,48 @@ The current concept is a periodically operating robot rather than a machine that
 | Project risk | Lower | Higher |
 | Current decision | **CHOSEN** | Not selected as primary controller |
 
-## 5. Proposed Autonomous Operating Cycle
+## 5. Vision Approach — Decision Record
+
+Ball detection began as classical computer vision: HSV white-thresholding,
+morphological cleanup, and contour gates on area, circularity, and fill ratio.
+Field testing showed two failure modes that are inherent to that approach rather
+than a tuning mistake:
+
+- **Shade and uneven light.** A fixed brightness threshold drops any ball in
+  shadow. Lowering it to catch shaded balls admits bright grass and concrete
+  instead. No single setting survives a green carrying both sun and shade.
+- **Distance.** Calibration derives a minimum blob area from the sample balls, so
+  balls beyond that range are discarded before shape checks run.
+
+| Category | Classical CV | YOLO11n |
+|---|---|---|
+| Robustness to lighting | Poor; fixed thresholds | Good; learns shape and context |
+| Distant/small balls | Poor; hard area floor | Moderate; improves with input size |
+| Compute cost on RP5 | Very low, 30+ FPS | A few FPS on CPU |
+| Dependencies | OpenCV only | Adds ultralytics and torch |
+| Tuning effort | Re-calibrate per lighting change | Train once on a labelled dataset |
+| Current decision | **Retained as fallback** | **CHOSEN as primary** |
+
+**Decision:** adopt an Ultralytics YOLO11n detector as the primary vision path
+and keep the classical detector as a selectable fallback. Both sit behind one
+interface, so the autonomous state machine is unaffected by the choice and the
+two can be compared on real footage.
+
+Keeping the classical path is a risk control, not indecision. If neural inference
+proves too slow on the Raspberry Pi 5, the robot still has a working detector that
+needs nothing beyond OpenCV.
+
+Rollout is staged: zero-shot detection using stock COCO weights (which already
+carry a `sports ball` class) validates the approach before any labelling effort;
+a custom single-class model trained on our own green follows; deployment to the
+RP5 uses an NCNN export for ARM performance. A Hailo AI HAT+ is the hardware
+option if real-time inference becomes a requirement.
+
+Still open: the camera model and mounting height, which set the pixel size of a
+ball at range and therefore the practical detection distance. The dataset must be
+captured at the robot's real camera height once that is fixed.
+
+## 6. Proposed Autonomous Operating Cycle
 
 1. **Idle / Charge:** Robot remains at the base station between runs and recharges its battery.
 2. **Launch:** Robot leaves the docking station on a scheduled cycle, approximately every 30 minutes.
@@ -58,7 +99,7 @@ The current concept is a periodically operating robot rather than a machine that
 9. **Unload / Stack:** Collected balls are transferred to the base station and organized by the golf-ball stacker.
 10. **Repeat:** Robot resumes charging/idle operation until the next scheduled collection cycle.
 
-## 6. Preliminary Hardware Bill of Materials
+## 7. Preliminary Hardware Bill of Materials
 
 | Component / subsystem | Quantity / notes | Preliminary budget |
 |---|---|---:|
@@ -81,7 +122,7 @@ The current concept is a periodically operating robot rather than a machine that
 
 > **Important:** These are planning estimates, not final quotations. Motors, motor drivers, battery capacity, charging hardware, and the stacking mechanism should be selected after the robot's weight, target speed, traction requirements, and operating time are established.
 
-## 7. Power-System Direction
+## 8. Power-System Direction
 
 - **Robot battery:** Use a rechargeable battery sized for the four-motor drivetrain and RP5 electronics.
 - **Separate rails:** Keep the motor power path separate from the regulated computer/sensor power path to reduce electrical noise and prevent motor loads from disrupting the computer.
@@ -89,13 +130,13 @@ The current concept is a periodically operating robot rather than a machine that
 - **24-hour requirement:** Continuous 24-hour operation is not required. The robot instead operates in periodic collection cycles, substantially reducing the energy requirement.
 - **Solar:** Solar can be investigated as a supplemental source for the base station, but it should not be assumed to provide all required charging power until an energy budget is calculated.
 
-## 8. Electronics / Embedded-System Plan
+## 9. Electronics / Embedded-System Plan
 
 The RP5 is the high-level computer. A custom KiCad PCB can provide connectors, power distribution, motor-driver interfaces, sensor connections, charging/docking interfaces, and other supporting electronics. This preserves a meaningful embedded-systems and PCB-design component without requiring the entire project to be built around a more difficult embedded processor.
 
 The exact motor drivers, motors, battery chemistry, charging architecture, sensors, camera, and docking contacts remain to be selected. These choices should be based on measured or estimated robot mass, motor current, wheel size, terrain, desired speed, battery capacity, and charging time.
 
-## 9. Project Priorities
+## 10. Project Priorities
 
 1. Reliable four-wheel drivetrain and basic manual control.
 2. Reliable ball collection mechanism.
@@ -107,14 +148,14 @@ The exact motor drivers, motors, battery chemistry, charging architecture, senso
 8. Optional ball-cleaning mechanism.
 9. Solar charging investigation and optimization.
 
-## 10. Team / Project Context
+## 11. Team / Project Context
 
 The capstone team consists of four members: Will (team leader), Micah (computer/software), Tiffany (research/documentation/people skills), and Isaac (hardware). Micah has begun learning KiCad for the project's electronics work. The original project direction was changed from earlier concepts, including HALO and a rocket avionics/telemetry system, to the autonomous golf ball picker.
 
-## 11. Decisions Still Needed
+## 12. Decisions Still Needed
 
 - Exact Raspberry Pi 5 model / RAM configuration.
-- Camera model and mounting position.
+- Camera model and mounting position (sets the detection range; see section 5).
 - Motor voltage, torque, RPM, and current requirements.
 - Four motor-driver models and whether each driver handles one or multiple motors.
 - Battery voltage, capacity, chemistry, and connector.
@@ -125,6 +166,7 @@ The capstone team consists of four members: Will (team leader), Micah (computer/
 - Golf-ball stacking mechanism.
 - Whether the cleaning mechanism is included in the first prototype.
 - Whether solar charging is practical after an energy budget is calculated.
+- Whether the RP5 CPU is fast enough for YOLO inference, or an AI accelerator is needed.
 
 ---
 
