@@ -107,7 +107,8 @@ def add_detector_args(parser: argparse.ArgumentParser) -> None:
     )
     group.add_argument(
         "--model", metavar="PATH", default=None,
-        help="yolo backend: .pt weights, .onnx, or an exported NCNN dir "
+        help="yolo backend: .pt weights, .onnx, an exported NCNN dir, or a "
+             "Hailo export dir for the AI HAT+ 2 (see export_hailo.py) "
              "(default: yolo11n.pt, downloaded on first use)",
     )
     group.add_argument(

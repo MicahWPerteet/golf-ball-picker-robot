@@ -32,6 +32,7 @@ just the development environment.
 | `test_image.py` | Run detection on a still image (no camera). |
 | `benchmark.py` | Run both backends over a folder and compare, side by side. |
 | `capture_dataset.py` | Collect training images from the webcam. |
+| `export_hailo.py` | Compile a YOLO model to a Hailo HEF for the AI HAT+ 2. Runs on the laptop only. |
 
 ## Setup
 
@@ -176,14 +177,97 @@ To go further, train a single-class model:
   python run_webcam.py --camera 0 --backend yolo --model best_ncnn_model --coco-class -1
   ```
   Expect a few frames per second on the CPU. That is adequate for a robot that
-  stops, scans, then drives. If it isn't, fall back to `--backend classical` or
-  add a Hailo AI HAT+.
+  stops, scans, then drives. With the AI HAT+ 2 attached, use a Hailo export
+  instead (next section).
 - **Small distant balls** are hard for YOLO too: at `--imgsz 640` a 720p frame is
   halved, so a 15 px ball becomes ~7 px. Raise `--imgsz` to 960 (slower), or let
   the robot drive closer and re-scan, which is the better robotics answer.
 - **If you switch to the Pi CSI camera module** (ribbon cable, not USB): that
   uses libcamera and needs **Picamera2** to capture frames. Only `camera.py`
   changes; neither detector does.
+
+## Hailo AI HAT+ 2 (NPU)
+
+The robot's Pi carries an **AI HAT+ 2 (Hailo-10H)**. YOLO runs on it through the
+same `--backend yolo` path: Ultralytics loads a Hailo export directory and uses
+HailoRT under the hood. There is no separate backend; only `--model` changes.
+
+A HEF is compiled ahead of time on the **laptop** (Linux x86_64 only), then
+copied to the Pi.
+
+### 1. Pi: install the Hailo runtime (once)
+
+```bash
+sudo apt update && sudo apt full-upgrade
+sudo apt install dkms hailo-h10-all      # AI HAT+ 2. NOT hailo-all (that's Hailo-8/8L;
+sudo reboot                              # the two packages can't coexist)
+hailortcli fw-control identify           # should report the Hailo-10H
+```
+
+`hailo-h10-all` installs HailoRT's Python bindings into the **system** Python,
+so rebuild the project venv so it can see them:
+
+```bash
+rm -rf .venv
+python3 -m venv --system-site-packages .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+.venv/bin/pip install -r requirements-yolo.txt
+.venv/bin/python -c "import hailo_platform"   # must succeed
+```
+
+### 2. Laptop: compile the HEF
+
+The Hailo Dataflow Compiler (DFC) is a wheel from the
+[Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/)
+(free account). The Hailo-10H needs **DFC 5.x** (3.x is for Hailo-8/8L). The
+wheel supports only certain Python versions, which don't include the 3.14 in
+`.venv`, so give it its own venv using the Python version in the wheel's `cpXY`
+tag:
+
+```bash
+python3.X -m venv .venv-dfc                 # X = the wheel's Python version
+.venv-dfc/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+.venv-dfc/bin/pip install -r requirements-yolo.txt ~/Downloads/hailo_dataflow_compiler-*.whl
+.venv-dfc/bin/python export_hailo.py        # -> yolo11n_hailo_model/
+```
+
+Compiling takes a while (INT8 quantization plus calibration). With no `--data`,
+it calibrates on COCO, which is right for the stock zero-shot model.
+
+### 3. Run it on the Pi
+
+Copy the **whole** directory, because `metadata.yaml` must stay next to the `.hef`:
+
+```bash
+scp -r yolo11n_hailo_model <user>@<pi>:<repo>/ball_detection_algo/
+# on the Pi:
+.venv/bin/python run_webcam.py --camera 0 --backend yolo --model yolo11n_hailo_model
+```
+
+The startup line prints `hailo=True` when the NPU is in use. Compare its FPS
+against the CPU model with `--no-display`.
+
+### Things that are fixed at export
+
+- **Input size.** `--imgsz` is ignored for a HEF. To try 960 for distant balls,
+  re-export with `export_hailo.py --imgsz 960`.
+- **NMS floor.** `export_hailo.py --conf/--iou` are compiled in. At runtime,
+  `--conf` can only be *raised* above the exported value.
+- **Chip.** A `hailo10h` HEF won't run on a Hailo-8/8L, or the other way round.
+
+### Custom golf-ball model
+
+Train as in "Training a custom YOLO model", then calibrate on **our own**
+images. Calibrating on COCO would tune the INT8 ranges for the wrong scenes.
+
+```bash
+.venv-dfc/bin/python export_hailo.py --weights best.pt --data data.yaml
+.venv/bin/python run_webcam.py --camera 0 --backend yolo --model best_hailo_model --coco-class -1
+```
+
+Hailo recommends about 1,000 calibration images. With fewer, expect some INT8
+accuracy loss relative to `best.pt`; check it with `benchmark.py`.
 
 ## Not done yet (future work)
 

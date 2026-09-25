@@ -69,6 +69,12 @@ model is milestone 2 and requires a dataset that does not exist yet — the repo
 golf-ball imagery at all. With a fine-tuned model, pass `--coco-class -1` to disable the
 filter, since a single-class model has no class 32.
 
+**Hailo AI HAT+ 2 (Hailo-10H NPU on the RP5):** not a separate backend. It's a model
+format for `--backend yolo`. `export_hailo.py` compiles a `<name>_hailo_model/` directory
+(`.hef` + `metadata.yaml`) on the laptop, and `--model <that dir>` runs it through
+Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to report
+`hailo=True` and the compiled `imgsz`.
+
 **Gotchas (hard-won, keep):**
 - **Windows capture backend must be DirectShow (`CAP_DSHOW`), not MSMF** — MSMF is slow to
   open and *hangs* when probing a camera index that doesn't exist. `camera.py` selects DSHOW
@@ -85,6 +91,17 @@ filter, since a single-class model has no class 32.
   a 720p frame is halved, so a 15 px ball lands near the stride-8 head's limit. Raise
   `--imgsz`, or let the scan → navigate loop drive closer and re-scan (preferred; no model
   change).
+- **Hailo:**
+  - **The Pi package is `hailo-h10-all`**, not `hailo-all` (that one is Hailo-8/8L).
+    The two can't be installed together, and a HEF only runs on the chip it was compiled
+    for (`--arch hailo10h`).
+  - **HEF export runs only on Linux x86_64** with the Hailo DFC 5.x wheel (Developer
+    Zone, not PyPI), in its own `.venv-dfc`, because the wheel doesn't support the main
+    venv's Python 3.14. Never try to export on the Pi.
+  - **The Pi venv must be created with `--system-site-packages`**, because
+    `hailo_platform` comes from apt.
+  - **Input size and the NMS conf/IoU floors are baked in at export.** `--imgsz` is
+    ignored, and `--conf` can only be raised.
 - **USB webcam ⇒ `cv2.VideoCapture` is the portable path.** If the team ever switches to the
   RP5 **CSI camera module**, that needs Picamera2/libcamera instead — only the capture call
   changes, `detect_golf_balls()` does not.
