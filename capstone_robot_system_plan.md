@@ -78,9 +78,12 @@ needs nothing beyond OpenCV.
 
 Rollout is staged: zero-shot detection using stock COCO weights (which already
 carry a `sports ball` class) validates the approach before any labelling effort;
-a custom single-class model trained on our own green follows; deployment to the
-RP5 uses an NCNN export for ARM performance. A Hailo AI HAT+ is the hardware
-option if real-time inference becomes a requirement.
+a custom single-class model trained on our own green follows. On the robot, the
+model runs on a **Raspberry Pi AI HAT+ 2 (Hailo-10H NPU)**: it is compiled to a
+Hailo HEF on an x86 Linux dev machine and loaded through the same YOLO backend,
+so neither the detector interface nor the state machine changes. A CPU/NCNN
+export remains the fallback if the HAT is absent, and classical CV remains the
+fallback beneath that.
 
 Still open: the camera model and mounting height, which set the pixel size of a
 ball at range and therefore the practical detection distance. The dataset must be
@@ -105,6 +108,7 @@ captured at the robot's real camera height once that is fixed.
 |---|---|---:|
 | Raspberry Pi 5 | 1 central computer | $80–$100 |
 | Camera | 1; compatible with RP5 | $20–$50 |
+| Raspberry Pi AI HAT+ 2 | 1; Hailo-10H NPU (40 TOPS) for on-robot YOLO inference | Acquired |
 | MicroSD / storage | 1 | $10–$20 |
 | Power regulation | Logic rail + appropriate converters | $15–$30 |
 | DC geared drive motors | 4 planned | $40–$100 |

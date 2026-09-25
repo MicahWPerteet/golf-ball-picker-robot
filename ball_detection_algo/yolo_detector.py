@@ -17,12 +17,19 @@ WHY THE IMPORT IS DEFERRED
     the fallback if inference turns out too slow on the Raspberry Pi 5.
 
 MODEL FORMATS
-    YOLO() loads .pt weights, an exported .onnx, or an exported NCNN directory
-    through the identical call, so deploying to the RP5 changes the --model path
-    and nothing in this file.
+    YOLO() loads .pt weights, an exported .onnx, an exported NCNN directory, or a
+    Hailo export directory (a .hef plus metadata.yaml, built by export_hailo.py)
+    through the identical call, so deploying to the RP5 -- CPU or the AI HAT+ 2
+    NPU -- changes the --model path and nothing in this file.
+
+    A Hailo HEF is compiled for one fixed input size. Ultralytics reads that size
+    from the export's metadata and ignores --imgsz; we mirror it in self.imgsz so
+    the startup line reports what actually runs.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import numpy as np
 
@@ -46,6 +53,22 @@ _MISSING_DEP_HELP = (
 )
 
 
+def _hailo_export_imgsz(model_path: str) -> int | None:
+    """Return the compiled input size if `model_path` is a Hailo export dir.
+
+    None means "not a Hailo export". The HEF's input is fixed at export time, so
+    this is the only size the NPU can run.
+    """
+    path = Path(model_path)
+    if not path.is_dir() or next(path.glob("*.hef"), None) is None:
+        return None
+    import yaml  # ships with ultralytics, which the caller has already imported
+
+    meta = yaml.safe_load((path / "metadata.yaml").read_text()) or {}
+    imgsz = meta.get("imgsz", 0)
+    return int(imgsz[0] if isinstance(imgsz, (list, tuple)) else imgsz)
+
+
 class YoloDetector:
     """Callable YOLO backend: `detector(frame_bgr) -> list[Detection]`."""
 
@@ -64,6 +87,12 @@ class YoloDetector:
             raise ImportError(_MISSING_DEP_HELP) from exc
 
         self.model_path = model_path
+        hailo_imgsz = _hailo_export_imgsz(model_path)
+        self.hailo = hailo_imgsz is not None
+        if self.hailo and hailo_imgsz != imgsz:
+            print(f"Hailo HEF is compiled at imgsz={hailo_imgsz}; ignoring "
+                  f"--imgsz {imgsz} (re-export to change it).")
+            imgsz = hailo_imgsz
         self.imgsz = imgsz
         self.conf = conf
         self.iou = iou
@@ -129,5 +158,6 @@ class YoloDetector:
     def __repr__(self) -> str:
         return (
             f"YoloDetector(model={self.model_path!r}, imgsz={self.imgsz}, "
-            f"conf={self.conf}, iou={self.iou}, class_filter={self.class_filter})"
+            f"conf={self.conf}, iou={self.iou}, class_filter={self.class_filter}, "
+            f"hailo={self.hailo})"
         )

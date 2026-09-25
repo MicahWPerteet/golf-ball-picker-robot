@@ -36,8 +36,14 @@
 # does have CUDA, then bring back only the trained weights.
 #
 # ---------------------------------------------------------------------------
-# For the RP5, export the trained model to NCNN and load the exported directory
-# with the same --model flag. NCNN is noticeably faster than PyTorch on ARM.
+# For the RP5 with the AI HAT+ 2 (Hailo-10H), compile a HEF on the laptop with
+# export_hailo.py and load the exported directory with the same --model flag.
+# HailoRT's Python bindings come from `sudo apt install hailo-h10-all` into the
+# SYSTEM Python, so on the Pi the venv must see system packages:
+#
+#     python3 -m venv --system-site-packages .venv
+#
+# Without the HAT, export to NCNN instead; it is faster than PyTorch on ARM.
 #
 # ultralytics is AGPL-3.0. Fine for academic capstone work; worth a line in the
 # report's licensing section.
