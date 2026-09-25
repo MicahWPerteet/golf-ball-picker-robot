@@ -170,7 +170,7 @@ The capstone team consists of four members: Will (team leader), Micah (computer/
 - Golf-ball stacking mechanism.
 - Whether the cleaning mechanism is included in the first prototype.
 - Whether solar charging is practical after an energy budget is calculated.
-- Whether the RP5 CPU is fast enough for YOLO inference, or an AI accelerator is needed.
+- On-robot YOLO throughput on the AI HAT+ 2 (Hailo-10H), measured on real footage; the accelerator question itself is settled (see section 5).
 
 ---
 
