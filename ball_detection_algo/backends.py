@@ -90,17 +90,19 @@ def make_detector(
     raise ValueError(f"Unknown backend {backend!r}; expected one of {BACKENDS}")
 
 
-def add_detector_args(parser: argparse.ArgumentParser) -> None:
+def add_detector_args(parser: argparse.ArgumentParser, *, select_backend: bool = True) -> None:
     """Add the shared backend-selection flags to a script's parser.
 
     Centralised so run_webcam.py, test_image.py and benchmark.py cannot drift
-    apart on flag names or defaults.
+    apart on flag names or defaults. benchmark.py runs every backend, so it
+    passes `select_backend=False` to omit --backend.
     """
     group = parser.add_argument_group("detector")
-    group.add_argument(
-        "--backend", choices=BACKENDS, default="classical",
-        help="detection backend (default: classical)",
-    )
+    if select_backend:
+        group.add_argument(
+            "--backend", choices=BACKENDS, default="classical",
+            help="detection backend (default: classical)",
+        )
     group.add_argument(
         "--params", metavar="PATH", default=None,
         help="classical backend: tuned thresholds JSON (see calibrate.py)",

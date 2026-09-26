@@ -25,8 +25,8 @@ import numpy as np
 class DetectorParams:
     """All tunable knobs for the detector, in one place.
 
-    The tuner (`tune.py`) writes these values live; paste its output back here to
-    change the defaults. Keeping every threshold here means the live loop, the
+    `calibrate.py` and `tune.py` save these to a JSON file that the other scripts
+    load with --params; edit the defaults here only to change the baseline. Keeping every threshold here means the live loop, the
     tuner, and the still-image tester never drift apart.
     """
 
