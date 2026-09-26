@@ -44,7 +44,8 @@ class DetectorParams:
     morph_ksize: int = 5
     morph_iters: int = 1
 
-    # --- Shape gates (measured on the downscaled frame if downscale < 1)
+    # --- Shape gates. Areas are ORIGINAL-frame px^2 whatever `downscale` is,
+    # so calibrated values stay valid and downscale only trades accuracy for speed.
     min_area: int = 120        # px^2; drops tiny bright specks
     max_area: int = 100_000    # px^2; drops huge bright regions (walls, sky)
     min_circularity: float = 0.60   # 4*pi*area / perimeter^2 ; 1.0 == perfect circle
@@ -147,7 +148,9 @@ def detect_golf_balls(frame_bgr: np.ndarray, params: DetectorParams | None = Non
     inv_scale = 1.0 / scale
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area < params.min_area or area > params.max_area:
+        # Gate in original-frame units: calibrate.py measures balls at full
+        # resolution, so comparing the shrunk contour would reject real balls.
+        if not params.min_area <= area * inv_scale * inv_scale <= params.max_area:
             continue
 
         perimeter = cv2.arcLength(contour, True)
@@ -193,7 +196,8 @@ def derive_params_from_rois(
       * val_min = a low percentile of the balls' brightness (minus a margin)
       * sat_max = a high percentile of the balls' saturation (plus a margin)
 
-    Area limits are set from the sizes of the boxed balls. Hue stays full-range
+    Area limits are set from the sizes of the boxed balls, in original-frame
+    pixels (the unit detect_golf_balls gates on). Hue stays full-range
     because white is achromatic (its hue is meaningless/noisy).
 
     Pure function: no camera, no window. Returns a new DetectorParams.

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Senior capstone for an **Autonomous Golf Ball Picker Robot** — a periodically-operating robot that scans a putting/chipping green (~every 30 min), collects golf balls, returns to a base station, and unloads them into a ball-stacking system. See `capstone_robot_system_plan.md` for the authoritative, up-to-date system concept, decision records, bill of materials, and open questions. **Read that document before making design or component recommendations** — it records decisions already made and their rationale, so proposing alternatives to settled choices (e.g. the controller) needs to engage with the reasoning there.
 
-This is an **early-stage repository**: planning docs, CAD, and the first computer-vision code (`ball_detection_algo/`, see below). There is no repo-wide build system or CI; the only runnable code lives in the CV module and is driven by the scripts documented there.
+This is an **early-stage repository**: planning docs, CAD, and the first computer-vision code (`ball_detection_algo/`, see below). There is no repo-wide build system or CI; the only runnable code lives in the CV module and is driven by the scripts documented there. Its tests run with `python -m pytest tests` from `ball_detection_algo/` (needs `requirements-dev.txt`; no camera or ML install).
 
 ## Repository layout
 
@@ -84,7 +84,8 @@ Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to
   background — a backgrounded process has no interactive desktop, so its OpenCV window never
   receives keystrokes and the tool aborts.
 - White-ball detection is lighting-sensitive; prefer `calibrate.py` over hand-tuning, and
-  re-calibrate when lighting changes. Calibrate at the distance the robot actually sees balls
+  re-calibrate when lighting changes. `min_area`/`max_area` are always full-frame px², so
+  `downscale` is a pure speed knob and never needs re-tuning. Calibrate at the distance the robot actually sees balls
   from — boxing balls held close to the camera sets a `min_area` floor that silently rejects
   everything on the far half of the green.
 - **Distant balls are hard for YOLO too**, not just for the classical gates: at `--imgsz 640`

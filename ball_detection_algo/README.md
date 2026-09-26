@@ -33,6 +33,7 @@ just the development environment.
 | `benchmark.py` | Run both backends over a folder and compare, side by side. |
 | `capture_dataset.py` | Collect training images from the webcam. |
 | `export_hailo.py` | Compile a YOLO model to a Hailo HEF for the AI HAT+ 2. Runs on the laptop only. |
+| `tests/` | pytest suite for the classical detector and backend factory. Needs no camera, window, or ML install. |
 
 ## Setup
 
@@ -82,6 +83,17 @@ python test_image.py photo.jpg --backend yolo
 ```
 
 Press `q` to quit any live window.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests
+```
+
+The suite runs on synthetic frames, so it needs only the base requirements plus
+pytest. It also checks that the classical path never imports `ultralytics` or
+`torch`.
 
 ## Choosing a backend
 
@@ -133,7 +145,8 @@ selects before shape filtering.
 
 ### If detection is still off
 - **Missing balls** → lower `val_min` (accept dimmer whites) or raise `sat_max`.
-- **Missing distant balls** → lower `min_area`.
+- **Missing distant balls** → lower `min_area`. Areas are always in full-frame
+  pixels, so changing `downscale` never requires re-tuning them.
 - **Boxing bright non-balls** → raise `min_circularity` / `min_fill_ratio`, or
   tighten `min_area`/`max_area`.
 
