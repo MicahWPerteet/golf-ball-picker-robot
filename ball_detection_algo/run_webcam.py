@@ -1,4 +1,4 @@
-"""Live golf-ball detector on the USB webcam.
+"""Live golf-ball detector on the camera feed.
 
 Opens the camera you point it at, runs the selected detection backend on each
 frame, and draws a green box around every golf ball. This is the entry point that
@@ -8,7 +8,7 @@ Usage:
     python run_webcam.py --camera 1                        # classical CV (default)
     python run_webcam.py --camera 1 --params params.json   # classical, tuned
     python run_webcam.py --camera 1 --backend yolo         # zero-shot YOLO11n
-    python run_webcam.py --camera 0 --no-display           # headless RP5
+    python run_webcam.py --camera csi --no-display         # headless robot, Pi camera
     python run_webcam.py --camera 1 --save last.jpg        # save latest annotated frame
 Press 'q' in the window to quit.
 

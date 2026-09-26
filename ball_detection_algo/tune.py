@@ -1,6 +1,6 @@
 """Interactive tuner for the white-golf-ball detector.
 
-Opens the live webcam with trackbars for every threshold. Adjust them until only
+Opens the live camera with trackbars for every threshold. Adjust them until only
 the golf balls are boxed under YOUR lighting/green, then press 'p' (or 'q' to
 quit). With --out the values are saved to a JSON file that the other scripts load
 with --params; they are also printed, in case you want to change the

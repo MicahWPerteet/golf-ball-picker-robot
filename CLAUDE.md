@@ -6,13 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Senior capstone for an **Autonomous Golf Ball Picker Robot** — a periodically-operating robot that scans a putting/chipping green (~every 30 min), collects golf balls, returns to a base station, and unloads them into a ball-stacking system. See `capstone_robot_system_plan.md` for the authoritative, up-to-date system concept, decision records, bill of materials, and open questions. **Read that document before making design or component recommendations** — it records decisions already made and their rationale, so proposing alternatives to settled choices (e.g. the controller) needs to engage with the reasoning there.
 
-This is an **early-stage repository**: planning docs, CAD, and the first computer-vision code (`ball_detection_algo/`, see below). There is no repo-wide build system or CI; the only runnable code lives in the CV module and is driven by the scripts documented there. Its tests run with `python -m pytest tests` from `ball_detection_algo/` (needs `requirements-dev.txt`; no camera or ML install).
+This is an **early-stage repository**: planning docs, the first computer-vision code (`ball_detection_algo/`, see below), and a VEX prototyping scaffold. CAD lives on disk but is git-ignored. There is no repo-wide build system or CI; the only runnable code lives in the CV module and is driven by the scripts documented there. Its tests run with `python -m pytest tests` from `ball_detection_algo/` (needs `requirements-dev.txt`; no camera or ML install).
 
 ## Repository layout
 
 - `capstone_robot_system_plan.md` — the single source of truth for the project. Update it when design decisions change rather than duplicating its content elsewhere.
 - `ball_holder_model/` — Blender sources (`.blend`) and exported meshes (`.stl`) for the physical ball-holder fixture, iterated by version (`v1`, `v1.1`, `v1.2`). `.blend1` files are Blender's automatic backups. When adding an iteration, bump the version suffix and export a matching `.stl` alongside the `.blend`. **These files are git-ignored** (large binaries, no useful diff) — they exist on disk and are shared out-of-band, so don't assume a clone has them.
 - `ball_detection_algo/` — the computer-vision ball-detection code (Python + OpenCV). See the dedicated section below.
+- `vex_prototype_code/` — VEX V5 Python project for mechanical prototyping. Currently only the generated "Hello V5" scaffold.
 
 ## Key settled decisions (from the plan doc)
 
@@ -30,7 +31,7 @@ This is an **early-stage repository**: planning docs, CAD, and the first compute
 Detects golf balls in a camera feed and draws a bounding box around each. The robot's camera
 is a **Raspberry Pi Camera Module 3 Wide** (IMX708, 120° diagonal, autofocus, CSI ribbon),
 selected with `--camera csi`; the dev laptop uses a USB webcam selected by index.
-Written to run **unchanged on the RP5** (Linux/V4L2); the laptop is just the dev box.
+Written to run **unchanged on the RP5**; the laptop is just the dev box.
 See `ball_detection_algo/README.md` for full usage.
 
 **Design (deliberate, don't flatten it):** there are **two interchangeable backends**
@@ -51,7 +52,9 @@ fallback if RP5 inference is too slow. The ML import is deferred into `YoloDetec
 
 Detection stays an isolated node in the autonomous state machine (…→ scan → navigate →…);
 swapping backends does not touch navigation. Camera capture, tuning, and display live in
-separate scripts that call into the factory.
+separate scripts: the detection runners (`run_webcam.py`, `test_image.py`, `benchmark.py`) go
+through the factory, while the classical-only tools (`calibrate.py`, `tune.py`) call
+`detector.py` directly.
 
 **Environment:** a venv lives at `ball_detection_algo/.venv`. Run scripts with
 `.venv\Scripts\python.exe` (Windows) / `.venv/bin/python` (RP5). `pip install -r
@@ -60,9 +63,10 @@ no version pin is needed despite the local Python being 3.14. **`requirements-yo
 separate and optional** — it adds `ultralytics` (and torch, which is large). Keep the base
 requirements file free of ML dependencies.
 
-**Typical workflow:** on the laptop, `list_cameras.py` (find the USB cam's index — it is *not*
-the laptop's built-in); on the robot, use `--camera csi` → then either `calibrate.py --camera N` → `run_webcam.py --camera N --params
-params.json` for the classical path, or `run_webcam.py --camera N --backend yolo` for the
+**Typical workflow:** pick the camera source — on the robot it is `--camera csi`; on the
+laptop run `list_cameras.py` to find the USB cam's index (it is *not* the laptop's built-in).
+Then either `calibrate.py --camera <src>` → `run_webcam.py --camera <src> --params
+params.json` for the classical path, or `run_webcam.py --camera <src> --backend yolo` for the
 neural one. `tune.py` is the manual slider fallback; `test_image.py` runs either backend on a
 still photo; `benchmark.py` compares both over a folder; `capture_dataset.py` collects
 training images.
@@ -83,14 +87,15 @@ Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to
 - **Windows capture backend must be DirectShow (`CAP_DSHOW`), not MSMF** — MSMF is slow to
   open and *hangs* when probing a camera index that doesn't exist. `camera.py` selects DSHOW
   on Windows, V4L2 on Linux/RP5.
-- **The interactive GUI scripts (`list_cameras.py`, `calibrate.py`, `tune.py`) must be run in
-  the user's own terminal** (suggest the `!` prefix), never launched by the agent in the
+- **The interactive GUI scripts (`list_cameras.py`, `calibrate.py`, `tune.py`,
+  `capture_dataset.py`, and `run_webcam.py`/`test_image.py` unless given `--no-display`/`--no-show`)
+  must be run in the user's own terminal** (suggest the `!` prefix), never launched by the agent in the
   background — a backgrounded process has no interactive desktop, so its OpenCV window never
   receives keystrokes and the tool aborts.
 - White-ball detection is lighting-sensitive; prefer `calibrate.py` over hand-tuning, and
   re-calibrate when lighting changes. `min_area`/`max_area` are always full-frame px², so
-  `downscale` is a pure speed knob and never needs re-tuning. Calibrate at the distance the robot actually sees balls
-  from — boxing balls held close to the camera sets a `min_area` floor that silently rejects
+  `downscale` is a pure speed knob and never needs re-tuning. Calibrate at the distance the
+  robot actually sees balls from — boxing balls held close to the camera sets a `min_area` floor that silently rejects
   everything on the far half of the green.
 - **Distant balls are hard for YOLO too**, not just for the classical gates: at `--imgsz 640`
   a 720p frame is halved, so a 15 px ball lands near the stride-8 head's limit. Raise
@@ -104,7 +109,7 @@ Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to
     Zone, not PyPI), in its own `.venv-dfc`, because the wheel doesn't support the main
     venv's Python 3.14. Never try to export on the Pi.
   - **The Pi venv must be created with `--system-site-packages`**, because
-    `hailo_platform` comes from apt.
+    `hailo_platform` and `picamera2` both come from apt.
   - **Input size and the NMS conf/IoU floors are baked in at export.** `--imgsz` is
     ignored, and `--conf` can only be raised.
 - **CSI camera ⇒ Picamera2, not `cv2.VideoCapture`.** The Pi 5 exposes the Camera Module 3

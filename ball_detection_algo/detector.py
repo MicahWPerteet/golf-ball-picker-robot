@@ -3,7 +3,7 @@
 This module is intentionally camera-free and I/O-free: it operates on a single
 BGR frame (a NumPy array) so it can be unit-tested on still images and dropped
 into the robot's autonomous state machine as an isolated "scan" node. The live
-webcam loop, the tuner, and the still-image tester all call into here.
+camera loop, the tuner, and the still-image tester all call into here.
 
 Detection is classical CV (no ML): white golf balls are bright, low-saturation,
 round blobs. We threshold for white in HSV, clean the mask morphologically, then

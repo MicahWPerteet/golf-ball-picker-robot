@@ -5,14 +5,14 @@ one frame and the tool measures their color/brightness and computes the settings
 for you. It saves them to a JSON file the other scripts can load with --params.
 
 Workflow:
-    1. A live webcam view opens (or a still image with --image).
+    1. A live camera view opens (or a still image with --image).
     2. Press SPACE to freeze the frame you want to calibrate on.
     3. Drag a box around each golf ball. Press ENTER after each; press ENTER on
        an empty selection when you're done. (ESC cancels.)
     4. The tuned params are computed, previewed, and saved to --out.
 
 Usage:
-    python calibrate.py --camera 1                    # from the webcam
+    python calibrate.py --camera 1                    # from a USB webcam
     python calibrate.py --camera csi                  # from the robot's Pi camera
     python calibrate.py --image green.jpg             # from a saved photo
     python calibrate.py --camera 1 --out params.json  # choose output file

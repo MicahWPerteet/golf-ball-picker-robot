@@ -7,12 +7,13 @@ Two interchangeable detection backends:
 
 | Backend | How it works | Use it for |
 |---|---|---|
-| `classical` (default) | HSV white-thresholding + morphology + contour shape gates. No ML, no dependencies beyond OpenCV. | Fast, predictable, controlled/indoor light. The fallback. |
+| `classical` (CLI default) | HSV white-thresholding + morphology + contour shape gates. No ML, no dependencies beyond OpenCV. | Fast, predictable, controlled/indoor light. The fallback. |
 | `yolo` | Ultralytics YOLO11n neural detector. | Shade, uneven outdoor light, and balls at distance, where fixed thresholds fail. |
 
 Both satisfy the same contract, `detector(frame) -> list[Detection]`, so
 navigation and the autonomous state machine never learn which one ran. Pick with
-`--backend`.
+`--backend`. YOLO is the project's primary path (see the plan doc, section 5);
+`classical` is only the command-line default because it runs on the base install.
 
 This code is written to run **unchanged on the Raspberry Pi 5**; the laptop is
 just the development environment. The robot's camera is a **Raspberry Pi Camera
@@ -30,10 +31,10 @@ selected with `--camera csi`. The laptop uses any USB webcam, selected by index.
 | `list_cameras.py` | Probe tool to find which index is the USB webcam (dev laptop; the CSI camera is just `csi`). |
 | `calibrate.py` | **Classical auto-tune**: box a few real golf balls and it computes thresholds. |
 | `tune.py` | Live trackbar tuner for hand-adjusting classical thresholds. |
-| `run_webcam.py` | Main live detector on the webcam. |
+| `run_webcam.py` | Main live detector on the camera feed. |
 | `test_image.py` | Run detection on a still image (no camera). |
 | `benchmark.py` | Run both backends over a folder and compare, side by side. |
-| `capture_dataset.py` | Collect training images from the webcam. |
+| `capture_dataset.py` | Collect training images from the camera. |
 | `export_hailo.py` | Compile a YOLO model to a Hailo HEF for the AI HAT+ 2. Runs on the laptop only. |
 | `tests/` | pytest suite for the classical detector, backend factory, and camera selection. Needs no camera, window, or ML install. |
 
@@ -46,6 +47,10 @@ python3 -m venv .venv           # venv is required on RP5 Bookworm (PEP 668)
 source .venv/bin/activate       # Windows: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+**On the Pi, create the venv with `python3 -m venv --system-site-packages .venv`
+instead.** The CSI camera (Picamera2) and the Hailo runtime are both installed
+by apt into the system Python, and a plain venv can't see them.
 
 That is everything the classical backend needs. The YOLO backend is **optional**
 and installed separately, because `ultralytics` pulls in torch.
@@ -161,7 +166,7 @@ in a dataset.
 
 To go further, train a single-class model:
 
-1. **Capture.** `python capture_dataset.py --camera 1 --out datasets/raw`
+1. **Capture.** `python capture_dataset.py --camera csi --out datasets/raw` (on the Pi)
    Shoot the conditions that currently fail: shade, overcast, low sun, balls at
    range. Include frames with no balls. Shoot from the robot's camera height,
    ideally on the Pi with `--camera csi`: the wide lens distorts balls in ways
@@ -214,7 +219,8 @@ To go further, train a single-class model:
   wide lens makes this worse: spread over ~102° horizontally, a 1280 px frame
   gives roughly 12 px per degree, so a ball 3 m away is only ~10 px across before
   any YOLO downscaling (less toward the edges, where the lens compresses the
-  image). Capture at a higher `--width/--height` if range matters more than speed.
+  image). If range matters more than speed, raise `--imgsz` together with a
+  higher capture `--width/--height`; either alone is capped by the other.
 
 ## Hailo AI HAT+ 2 (NPU)
 

@@ -1,4 +1,4 @@
-"""Capture training images from the webcam.
+"""Capture training images from the camera.
 
 Milestone 2 needs a few hundred photos of real golf balls before a custom model
 can be trained. This grabs frames to a folder with sequential filenames, either
