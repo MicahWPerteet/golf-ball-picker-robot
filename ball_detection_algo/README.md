@@ -1,21 +1,24 @@
 # Golf Ball Detection
 
-Golf-ball detector for the autonomous golf ball picker robot. Opens a USB webcam,
+Golf-ball detector for the autonomous golf ball picker robot. Opens a camera,
 finds golf balls in each frame, and draws a bounding box around each one.
 
 Two interchangeable detection backends:
 
 | Backend | How it works | Use it for |
 |---|---|---|
-| `classical` (default) | HSV white-thresholding + morphology + contour shape gates. No ML, no dependencies beyond OpenCV. | Fast, predictable, controlled/indoor light. The fallback. |
+| `classical` (CLI default) | HSV white-thresholding + morphology + contour shape gates. No ML, no dependencies beyond OpenCV. | Fast, predictable, controlled/indoor light. The fallback. |
 | `yolo` | Ultralytics YOLO11n neural detector. | Shade, uneven outdoor light, and balls at distance, where fixed thresholds fail. |
 
 Both satisfy the same contract, `detector(frame) -> list[Detection]`, so
 navigation and the autonomous state machine never learn which one ran. Pick with
-`--backend`.
+`--backend`. YOLO is the project's primary path (see the plan doc, section 5);
+`classical` is only the command-line default because it runs on the base install.
 
 This code is written to run **unchanged on the Raspberry Pi 5**; the laptop is
-just the development environment.
+just the development environment. The robot's camera is a **Raspberry Pi Camera
+Module 3 Wide** (IMX708, 120° diagonal, autofocus) on the Pi's CSI ribbon port,
+selected with `--camera csi`. The laptop uses any USB webcam, selected by index.
 
 ## Files
 
@@ -24,15 +27,16 @@ just the development environment.
 | `detector.py` | Classical detection logic and the shared `Detection` type. `detect_golf_balls(frame, params)` is a pure function. Imports no ML libraries, by design. |
 | `yolo_detector.py` | `YoloDetector`, the neural backend. A callable object, because a model must be loaded once and reused. |
 | `backends.py` | `make_detector(...)` factory plus the shared CLI flags. The only module importing both detectors. |
-| `camera.py` | Opens a USB webcam with the right backend per OS (Windows/Linux). |
-| `list_cameras.py` | Probe tool to find which camera index is the USB webcam. |
+| `camera.py` | Opens the camera: the Pi CSI camera via Picamera2 (`--camera csi`), or a USB webcam via OpenCV with the right backend per OS. |
+| `list_cameras.py` | Probe tool to find which index is the USB webcam (dev laptop; the CSI camera is just `csi`). |
 | `calibrate.py` | **Classical auto-tune**: box a few real golf balls and it computes thresholds. |
 | `tune.py` | Live trackbar tuner for hand-adjusting classical thresholds. |
-| `run_webcam.py` | Main live detector on the webcam. |
+| `run_webcam.py` | Main live detector on the camera feed. |
 | `test_image.py` | Run detection on a still image (no camera). |
 | `benchmark.py` | Run both backends over a folder and compare, side by side. |
-| `capture_dataset.py` | Collect training images from the webcam. |
+| `capture_dataset.py` | Collect training images from the camera. |
 | `export_hailo.py` | Compile a YOLO model to a Hailo HEF for the AI HAT+ 2. Runs on the laptop only. |
+| `tests/` | pytest suite for the classical detector, backend factory, and camera selection. Needs no camera, window, or ML install. |
 
 ## Setup
 
@@ -43,6 +47,10 @@ python3 -m venv .venv           # venv is required on RP5 Bookworm (PEP 668)
 source .venv/bin/activate       # Windows: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+**On the Pi, create the venv with `python3 -m venv --system-site-packages .venv`
+instead.** The CSI camera (Picamera2) and the Hailo runtime are both installed
+by apt into the system Python, and a plain venv can't see them.
 
 That is everything the classical backend needs. The YOLO backend is **optional**
 and installed separately, because `ultralytics` pulls in torch.
@@ -82,6 +90,17 @@ python test_image.py photo.jpg --backend yolo
 ```
 
 Press `q` to quit any live window.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests
+```
+
+The suite runs on synthetic frames, so it needs only the base requirements plus
+pytest. It also checks that the classical path never imports `ultralytics` or
+`torch`.
 
 ## Choosing a backend
 
@@ -133,7 +152,8 @@ selects before shape filtering.
 
 ### If detection is still off
 - **Missing balls** → lower `val_min` (accept dimmer whites) or raise `sat_max`.
-- **Missing distant balls** → lower `min_area`.
+- **Missing distant balls** → lower `min_area`. Areas are always in full-frame
+  pixels, so changing `downscale` never requires re-tuning them.
 - **Boxing bright non-balls** → raise `min_circularity` / `min_fill_ratio`, or
   tighten `min_area`/`max_area`.
 
@@ -146,9 +166,11 @@ in a dataset.
 
 To go further, train a single-class model:
 
-1. **Capture.** `python capture_dataset.py --camera 1 --out datasets/raw`
+1. **Capture.** `python capture_dataset.py --camera csi --out datasets/raw` (on the Pi)
    Shoot the conditions that currently fail: shade, overcast, low sun, balls at
-   range. Include frames with no balls. Shoot from the robot's camera height.
+   range. Include frames with no balls. Shoot from the robot's camera height,
+   ideally on the Pi with `--camera csi`: the wide lens distorts balls in ways
+   a laptop webcam's images won't teach the model.
 2. **Label.** Roboflow or CVAT, exported in YOLO format, one class: `ball`.
    200-500 images is a reasonable target for a single-class detector.
 3. **Train.** Off this machine. It has no CUDA GPU, so a local run takes many
@@ -165,8 +187,20 @@ To go further, train a single-class model:
 
 ## Running on the Raspberry Pi 5
 
-- **USB webcam:** everything above works as-is (`cv2.VideoCapture` uses V4L2 on
-  Linux). The USB cam is usually index `0` on the RP5.
+- **Camera:** the robot uses a **Pi Camera Module 3 Wide** on the CSI ribbon
+  connector. The Pi 5 exposes CSI cameras only through libcamera, so frames come
+  from **Picamera2**, not `cv2.VideoCapture`. Pass `--camera csi` (or `csi1` for
+  the second port) to any script; nothing else changes. Picamera2 comes from apt
+  and needs the same `--system-site-packages` venv as the Hailo runtime:
+  ```bash
+  sudo apt install python3-picamera2
+  rpicam-hello --list-cameras        # should list an imx708_wide
+  python run_webcam.py --camera csi --no-display
+  ```
+  Continuous autofocus is switched on at startup. The camera ships with a 15 cm
+  15-to-22-pin FFC cable. The Pi 5's CSI ports are 22-pin, so it fits, but 15 cm
+  constrains where the camera can mount relative to the Pi. A USB webcam still
+  works on the Pi by index, as on the laptop.
 - **Headless robot (no monitor):** add `--no-display` to `run_webcam.py`. Use
   `--save out.jpg` to write the latest annotated frame, or import the detector
   directly and feed the boxes to the navigation code.
@@ -174,17 +208,19 @@ To go further, train a single-class model:
   on ARM. `--model` loads the exported directory through the same code path.
   ```bash
   yolo export model=best.pt format=ncnn
-  python run_webcam.py --camera 0 --backend yolo --model best_ncnn_model --coco-class -1
+  python run_webcam.py --camera csi --backend yolo --model best_ncnn_model --coco-class -1
   ```
   Expect a few frames per second on the CPU. That is adequate for a robot that
   stops, scans, then drives. With the AI HAT+ 2 attached, use a Hailo export
   instead (next section).
 - **Small distant balls** are hard for YOLO too: at `--imgsz 640` a 720p frame is
   halved, so a 15 px ball becomes ~7 px. Raise `--imgsz` to 960 (slower), or let
-  the robot drive closer and re-scan, which is the better robotics answer.
-- **If you switch to the Pi CSI camera module** (ribbon cable, not USB): that
-  uses libcamera and needs **Picamera2** to capture frames. Only `camera.py`
-  changes; neither detector does.
+  the robot drive closer and re-scan, which is the better robotics answer. The
+  wide lens makes this worse: spread over ~102° horizontally, a 1280 px frame
+  gives roughly 12 px per degree, so a ball 3 m away is only ~10 px across before
+  any YOLO downscaling (less toward the edges, where the lens compresses the
+  image). If range matters more than speed, raise `--imgsz` together with a
+  higher capture `--width/--height`; either alone is capped by the other.
 
 ## Hailo AI HAT+ 2 (NPU)
 
@@ -242,7 +278,7 @@ Copy the **whole** directory, because `metadata.yaml` must stay next to the `.he
 ```bash
 scp -r yolo11n_hailo_model <user>@<pi>:<repo>/ball_detection_algo/
 # on the Pi:
-.venv/bin/python run_webcam.py --camera 0 --backend yolo --model yolo11n_hailo_model
+.venv/bin/python run_webcam.py --camera csi --backend yolo --model yolo11n_hailo_model
 ```
 
 The startup line prints `hailo=True` when the NPU is in use. Compare its FPS
@@ -263,7 +299,7 @@ images. Calibrating on COCO would tune the INT8 ranges for the wrong scenes.
 
 ```bash
 .venv-dfc/bin/python export_hailo.py --weights best.pt --data data.yaml
-.venv/bin/python run_webcam.py --camera 0 --backend yolo --model best_hailo_model --coco-class -1
+.venv/bin/python run_webcam.py --camera csi --backend yolo --model best_hailo_model --coco-class -1
 ```
 
 Hailo recommends about 1,000 calibration images. With fewer, expect some INT8
