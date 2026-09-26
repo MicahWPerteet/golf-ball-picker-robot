@@ -7,6 +7,10 @@ This shows a LIVE preview of each working camera, one at a time. Look at the
 video, and when you see the USB webcam's view, note the index shown in the
 window title/overlay. Then pass it as `--camera N` to the other scripts.
 
+This probes USB webcams only. The robot's CSI camera (Pi Camera Module 3 Wide)
+is not an OpenCV index: pass `--camera csi` instead, and check it is detected
+with `rpicam-hello --list-cameras`.
+
 Controls (while a preview is showing):
     n  -> next camera
     q  -> quit

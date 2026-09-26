@@ -18,6 +18,8 @@ This is an **early-stage repository**: planning docs, CAD, and the first compute
 
 - **Controller: Raspberry Pi 5**, chosen over the ESP32-P4 primarily for its Linux/Python/OpenCV vision ecosystem, built-in Wi-Fi, and lower project risk. The RP5 is the high-level brain; a **custom KiCad PCB** handles power distribution, motor-driver interfaces, and charging/docking — this is where the embedded-systems learning goal lives.
 - **Drivetrain:** planned four-wheel drive with 4+ motor drivers. Keep **motor power and logic/computer power on separate rails**.
+- **Camera:** Raspberry Pi Camera Module 3 Wide (IMX708, 120°, autofocus) on the RP5's CSI
+  port. Mounting height/tilt is still open.
 - **Vision:** YOLO11n neural detection is the primary path, with classical CV retained as a
   selectable fallback (see section 5 of the plan doc for the decision record). Still a
   high-value but *not top-priority* capability (priority #4) — hardware reliability
@@ -25,7 +27,9 @@ This is an **early-stage repository**: planning docs, CAD, and the first compute
 
 ## Computer-vision module (`ball_detection_algo/`)
 
-Detects golf balls in a USB-webcam feed and draws a bounding box around each.
+Detects golf balls in a camera feed and draws a bounding box around each. The robot's camera
+is a **Raspberry Pi Camera Module 3 Wide** (IMX708, 120° diagonal, autofocus, CSI ribbon),
+selected with `--camera csi`; the dev laptop uses a USB webcam selected by index.
 Written to run **unchanged on the RP5** (Linux/V4L2); the laptop is just the dev box.
 See `ball_detection_algo/README.md` for full usage.
 
@@ -56,8 +60,8 @@ no version pin is needed despite the local Python being 3.14. **`requirements-yo
 separate and optional** — it adds `ultralytics` (and torch, which is large). Keep the base
 requirements file free of ML dependencies.
 
-**Typical workflow:** `list_cameras.py` (find the USB cam's index — it is *not* the laptop's
-built-in) → then either `calibrate.py --camera N` → `run_webcam.py --camera N --params
+**Typical workflow:** on the laptop, `list_cameras.py` (find the USB cam's index — it is *not*
+the laptop's built-in); on the robot, use `--camera csi` → then either `calibrate.py --camera N` → `run_webcam.py --camera N --params
 params.json` for the classical path, or `run_webcam.py --camera N --backend yolo` for the
 neural one. `tune.py` is the manual slider fallback; `test_image.py` runs either backend on a
 still photo; `benchmark.py` compares both over a folder; `capture_dataset.py` collects
@@ -103,9 +107,15 @@ Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to
     `hailo_platform` comes from apt.
   - **Input size and the NMS conf/IoU floors are baked in at export.** `--imgsz` is
     ignored, and `--conf` can only be raised.
-- **USB webcam ⇒ `cv2.VideoCapture` is the portable path.** If the team ever switches to the
-  RP5 **CSI camera module**, that needs Picamera2/libcamera instead — only the capture call
-  changes, `detect_golf_balls()` does not.
+- **CSI camera ⇒ Picamera2, not `cv2.VideoCapture`.** The Pi 5 exposes the Camera Module 3
+  only through libcamera. `camera.py`'s `PiCamera` wraps Picamera2 in the `read()`/`release()`
+  slice of the VideoCapture API, so scripts and detectors don't know which camera is attached.
+  Picamera2 is apt-only (`python3-picamera2`), so it is imported lazily like `ultralytics`;
+  never add it to requirements. Its `"RGB888"` format is already BGR in memory, so frames need
+  no color conversion.
+- **The 120° wide lens shrinks distant balls** (~10 px across at 3 m in a 1280 px frame) and
+  distorts them toward the edges. Build the training dataset from this camera at robot height,
+  not from a laptop webcam.
 
 ## Team context
 

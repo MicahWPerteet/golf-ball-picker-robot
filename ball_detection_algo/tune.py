@@ -22,7 +22,7 @@ from dataclasses import replace
 import cv2
 import numpy as np
 
-from camera import open_camera
+from camera import add_camera_args, open_camera
 from detector import DetectorParams, build_white_mask, detect_golf_balls, draw_detections
 
 WINDOW = "tuner (p=print params, q=quit)"
@@ -85,10 +85,7 @@ def _print_params(params: DetectorParams) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--camera", type=int, required=True,
-                        help="camera index (find it with list_cameras.py)")
-    parser.add_argument("--width", type=int, default=1280)
-    parser.add_argument("--height", type=int, default=720)
+    add_camera_args(parser)
     parser.add_argument("--params", metavar="PATH", default=None,
                         help="start from tuned params in this JSON file (see calibrate.py)")
     parser.add_argument("--out", metavar="PATH", default=None,

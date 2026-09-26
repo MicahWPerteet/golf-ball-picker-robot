@@ -15,8 +15,11 @@ WHAT TO CAPTURE
     Include some frames with NO balls at all: negatives teach the model what
     isn't a ball, which is what keeps false positives down.
 
-    Capture at the camera height the robot will actually use. A dataset shot from
-    standing height teaches the wrong viewpoint.
+    Capture at the camera height the robot will actually use, and with the
+    robot's own camera (--camera csi) wherever possible. The Camera Module 3
+    Wide's 120-degree lens bends and shrinks balls differently from a laptop
+    webcam, and a dataset shot from another lens or from standing height teaches
+    the wrong view.
 
 MUST BE RUN IN YOUR OWN TERMINAL -- it opens an interactive OpenCV window, so
 prefix the command with '!' rather than letting an agent background it.
@@ -24,6 +27,7 @@ prefix the command with '!' rather than letting an agent background it.
 Usage:
     python capture_dataset.py --camera 1 --out datasets/raw
     python capture_dataset.py --camera 1 --out datasets/raw --interval 2.0
+    python capture_dataset.py --camera csi --out datasets/raw   # on the robot (preferred)
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ import time
 
 import cv2
 
-from camera import open_camera
+from camera import add_camera_args, open_camera
 
 
 def next_index(out_dir: str, prefix: str) -> int:
@@ -52,15 +56,12 @@ def next_index(out_dir: str, prefix: str) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--camera", type=int, required=True,
-                        help="camera index (find it with list_cameras.py)")
+    add_camera_args(parser)
     parser.add_argument("--out", default="datasets/raw",
                         help="output folder (default: datasets/raw)")
     parser.add_argument("--prefix", default="green",
                         help="filename prefix; use a different one per session "
                              "or location (default: green)")
-    parser.add_argument("--width", type=int, default=1280)
-    parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--interval", type=float, default=0.0, metavar="SEC",
                         help="auto-capture every SEC seconds (0 = manual only)")
     args = parser.parse_args()

@@ -24,16 +24,13 @@ import time
 import cv2
 
 from backends import add_detector_args, detector_from_args
-from camera import open_camera
+from camera import add_camera_args, open_camera
 from detector import draw_detections
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--camera", type=int, required=True,
-                        help="camera index (find it with list_cameras.py)")
-    parser.add_argument("--width", type=int, default=1280)
-    parser.add_argument("--height", type=int, default=720)
+    add_camera_args(parser)
     parser.add_argument("--no-display", dest="display", action="store_false",
                         help="don't open a window (headless robot)")
     parser.add_argument("--save", metavar="PATH", default=None,

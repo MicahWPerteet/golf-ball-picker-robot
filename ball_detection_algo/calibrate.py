@@ -13,6 +13,7 @@ Workflow:
 
 Usage:
     python calibrate.py --camera 1                    # from the webcam
+    python calibrate.py --camera csi                  # from the robot's Pi camera
     python calibrate.py --image green.jpg             # from a saved photo
     python calibrate.py --camera 1 --out params.json  # choose output file
 
@@ -27,7 +28,7 @@ import sys
 
 import cv2
 
-from camera import open_camera
+from camera import camera_source, open_camera
 from detector import (
     DetectorParams,
     derive_params_from_rois,
@@ -36,8 +37,8 @@ from detector import (
 )
 
 
-def _grab_frame_from_camera(index: int, width: int, height: int):
-    cap = open_camera(index, width, height)
+def _grab_frame_from_camera(source: int | str, width: int, height: int):
+    cap = open_camera(source, width, height)
     print("Live view: press SPACE to freeze a frame, or 'q' to abort.")
     frame = None
     try:
@@ -64,7 +65,8 @@ def _grab_frame_from_camera(index: int, width: int, height: int):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--camera", type=int, help="camera index (see list_cameras.py)")
+    src.add_argument("--camera", type=camera_source, metavar="SOURCE",
+                     help="USB webcam index (see list_cameras.py), or 'csi' for the Pi camera")
     src.add_argument("--image", help="calibrate from a saved image instead of the camera")
     parser.add_argument("--out", default="params.json", help="where to save tuned params")
     parser.add_argument("--width", type=int, default=1280)
@@ -101,7 +103,7 @@ def main() -> None:
 
     params.save(args.out)
     print(f"\nSaved to {args.out}")
-    print(f"Run it with:  python run_webcam.py --camera <N> --params {args.out}")
+    print(f"Run it with:  python run_webcam.py --camera <N|csi> --params {args.out}")
 
     # Preview the result on the calibration frame.
     dets = detect_golf_balls(frame, params)
