@@ -189,8 +189,11 @@ To go further, train a single-class model:
 ## Hailo AI HAT+ 2 (NPU)
 
 The robot's Pi carries an **AI HAT+ 2 (Hailo-10H)**. YOLO runs on it through the
-same `--backend yolo` path: Ultralytics loads a Hailo export directory and uses
-HailoRT under the hood. There is no separate backend; only `--model` changes.
+same `--backend yolo` path. There is no separate backend; only `--model` changes.
+A Hailo export directory is run by `hailo_runtime.py` through HailoRT's InferModel
+API, not by Ultralytics: Ultralytics' Hailo backend uses the legacy
+configure/InferVStreams API, which the Hailo-10H rejects with
+`HAILO_NOT_IMPLEMENTED` (just as `hailortcli run` is rejected in favor of `run2`).
 
 A HEF is compiled ahead of time on the **laptop** (Linux x86_64 only), then
 copied to the Pi.

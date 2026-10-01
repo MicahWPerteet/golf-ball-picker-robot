@@ -71,9 +71,9 @@ filter, since a single-class model has no class 32.
 
 **Hailo AI HAT+ 2 (Hailo-10H NPU on the RP5):** not a separate backend. It's a model
 format for `--backend yolo`. `export_hailo.py` compiles a `<name>_hailo_model/` directory
-(`.hef` + `metadata.yaml`) on the laptop, and `--model <that dir>` runs it through
-Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to report
-`hailo=True` and the compiled `imgsz`.
+(`.hef` + `metadata.yaml`) on the laptop, and `--model <that dir>` makes `YoloDetector`
+run it through `hailo_runtime.py` (HailoRT InferModel API; no ultralytics/torch needed)
+instead of `YOLO()`.
 
 **Gotchas (hard-won, keep):**
 - **Windows capture backend must be DirectShow (`CAP_DSHOW`), not MSMF** — MSMF is slow to
@@ -100,6 +100,9 @@ Ultralytics' built-in HailoRT support. `YoloDetector` only detects the export to
     venv's Python 3.14. Never try to export on the Pi.
   - **The Pi venv must be created with `--system-site-packages`**, because
     `hailo_platform` comes from apt.
+  - **Don't route HEFs through Ultralytics' Hailo backend.** It uses HailoRT's legacy
+    configure/InferVStreams API, which the Hailo-10H rejects with `HAILO_NOT_IMPLEMENTED`
+    (same reason `hailortcli run` fails; use `hailortcli run2 set-net <hef>`).
   - **Input size and the NMS conf/IoU floors are baked in at export.** `--imgsz` is
     ignored, and `--conf` can only be raised.
 - **USB webcam ⇒ `cv2.VideoCapture` is the portable path.** If the team ever switches to the
