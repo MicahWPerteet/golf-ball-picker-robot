@@ -1,0 +1,4 @@
+# Development-only: running the test suite (python -m pytest tests).
+# Kept out of requirements.txt so the robot's install stays minimal.
+-r requirements.txt
+pytest>=8

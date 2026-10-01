@@ -92,7 +92,7 @@ def main() -> None:
           "Copy the whole directory to the Pi (metadata.yaml must stay next to the .hef):\n"
           f"    scp -r {out_dir} <user>@<pi>:<repo>/ball_detection_algo/\n"
           "Then on the Pi:\n"
-          f"    .venv/bin/python run_webcam.py --camera 0 --backend yolo --model {out_dir}")
+          f"    .venv/bin/python run_webcam.py --camera csi --backend yolo --model {out_dir}")
     if args.data:
         print("    (add --coco-class -1 for a single-class golf-ball model)")
 

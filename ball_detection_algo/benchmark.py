@@ -10,6 +10,9 @@ This is deliberately NOT mAP: that needs labelled ground truth. It is a
 count-and-look comparison, which is the honest measurement available before the
 dataset exists, and it is what tells you whether labelling is worth doing.
 
+Pass your best --params calibration: the comparison is only fair against a
+properly tuned classical baseline.
+
 Usage:
     python benchmark.py photos/
     python benchmark.py photos/ --params params.json --out comparison/
@@ -25,7 +28,7 @@ import time
 
 import cv2
 
-from backends import make_detector
+from backends import add_detector_args, make_detector
 from detector import DetectorParams, draw_detections
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
@@ -58,18 +61,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("images", help="directory of images, or a single image")
-    parser.add_argument("--params", metavar="PATH", default=None,
-                        help="classical thresholds JSON (see calibrate.py). "
-                             "Use your best calibration: the comparison is only "
-                             "fair against a properly tuned baseline")
-    parser.add_argument("--model", metavar="PATH", default=None,
-                        help="YOLO weights (default: yolo11n.pt)")
-    parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--conf", type=float, default=0.25)
-    parser.add_argument("--iou", type=float, default=0.45)
-    parser.add_argument("--coco-class", type=int, default=None, metavar="ID",
-                        help="YOLO class to keep; default COCO 'sports ball' (32), "
-                             "-1 to disable for a fine-tuned single-class model")
+    add_detector_args(parser, select_backend=False)
     parser.add_argument("--out", metavar="DIR", default=None,
                         help="write side-by-side annotated comparisons here")
     args = parser.parse_args()

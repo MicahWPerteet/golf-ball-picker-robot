@@ -1,25 +1,28 @@
 """Interactive tuner for the white-golf-ball detector.
 
-Opens the live webcam with trackbars for every threshold. Adjust them until only
+Opens the live camera with trackbars for every threshold. Adjust them until only
 the golf balls are boxed under YOUR lighting/green, then press 'p' (or 'q' to
-quit) to print the DetectorParams values. Paste those into the defaults in
-detector.py.
+quit). With --out the values are saved to a JSON file that the other scripts load
+with --params; they are also printed, in case you want to change the
+DetectorParams defaults in detector.py instead.
 
 The window shows the annotated frame and the binary white-mask side by side so
 you can see exactly what the color gate is selecting.
 
 Usage:
     python tune.py --camera 1
+    python tune.py --camera 1 --params params.json --out params.json
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 
 import cv2
 import numpy as np
 
-from camera import open_camera
+from camera import add_camera_args, open_camera
 from detector import DetectorParams, build_white_mask, detect_golf_balls, draw_detections
 
 WINDOW = "tuner (p=print params, q=quit)"
@@ -51,34 +54,38 @@ def _build_window(params: DetectorParams) -> None:
         cv2.createTrackbar(name, WINDOW, min(init, max_val), max_val, _noop)
 
 
-def _read_params() -> DetectorParams:
-    params = DetectorParams()
+def _read_params(base: DetectorParams) -> DetectorParams:
+    """Overlay the trackbar positions on `base`.
+
+    Starting from `base` rather than the defaults keeps the params that have no
+    trackbar (downscale, morph_iters, max_circularity) as loaded from --params,
+    so saving with --out doesn't silently reset them.
+    """
+    params = replace(base)
+    defaults = DetectorParams()
     for name, _max_val, attr, scale in _TRACKBARS:
         pos = cv2.getTrackbarPos(name, WINDOW)
         value = pos / scale
         # int-typed params stay int; float params (circularity/fill) become float
-        if isinstance(getattr(DetectorParams(), attr), int):
+        if isinstance(getattr(defaults, attr), int):
             value = int(round(value))
         setattr(params, attr, value)
     return params
 
 
 def _print_params(params: DetectorParams) -> None:
-    print("\n# --- paste into DetectorParams defaults in detector.py ---")
+    print("\n# --- DetectorParams (save with --out, or paste into detector.py defaults) ---")
     print(f"hue_min={params.hue_min}, hue_max={params.hue_max},")
     print(f"sat_max={params.sat_max}, val_min={params.val_min},")
     print(f"blur_ksize={params.blur_ksize}, morph_ksize={params.morph_ksize},")
     print(f"min_area={params.min_area}, max_area={params.max_area},")
     print(f"min_circularity={params.min_circularity:.2f}, min_fill_ratio={params.min_fill_ratio:.2f}")
-    print("# ----------------------------------------------------------\n")
+    print("# ------------------------------------------------------------------------\n")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--camera", type=int, required=True,
-                        help="camera index (find it with list_cameras.py)")
-    parser.add_argument("--width", type=int, default=1280)
-    parser.add_argument("--height", type=int, default=720)
+    add_camera_args(parser)
     parser.add_argument("--params", metavar="PATH", default=None,
                         help="start from tuned params in this JSON file (see calibrate.py)")
     parser.add_argument("--out", metavar="PATH", default=None,
@@ -96,7 +103,7 @@ def main() -> None:
             if not ok or frame is None:
                 continue
 
-            params = _read_params()
+            params = _read_params(start)
             detections = detect_golf_balls(frame, params)
             annotated = draw_detections(frame, detections)
 

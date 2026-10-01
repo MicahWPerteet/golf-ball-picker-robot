@@ -13,7 +13,7 @@ The current concept is a periodically operating robot rather than a machine that
 | Subsystem | Current direction |
 |---|---|
 | Central computer | Raspberry Pi 5 (RP5) — new team choice |
-| Vision | On-board camera connected to the RP5; YOLO11n neural detection with a classical-CV fallback (see section 5) |
+| Vision | Raspberry Pi Camera Module 3 Wide (CSI) on the RP5; YOLO11n neural detection with a classical-CV fallback (see section 5) |
 | Drive | Potential four-wheel-drive drivetrain with at least four motor drivers |
 | Ball collection | Mechanical collection system mounted on the robot |
 | Ball cleaning | Potential cleaning mechanism |
@@ -85,9 +85,19 @@ so neither the detector interface nor the state machine changes. A CPU/NCNN
 export remains the fallback if the HAT is absent, and classical CV remains the
 fallback beneath that.
 
-Still open: the camera model and mounting height, which set the pixel size of a
-ball at range and therefore the practical detection distance. The dataset must be
-captured at the robot's real camera height once that is fixed.
+**Camera (decided):** Arducam-sold Raspberry Pi Camera Module 3 Wide: Sony
+IMX708, 12 MP, 120° diagonal field of view, autofocus, on the Pi 5's CSI port
+with a 15 cm 15-to-22-pin FFC cable. The wide lens lets one scan cover more of the
+green, and autofocus holds focus from near the robot out to range. The cost is
+resolution per degree: in a 1280 px frame a ball 3 m away is only about 10 px
+across, and less toward the edges, where the lens distorts. On the Pi 5 the camera
+is read through libcamera/Picamera2 rather than OpenCV's capture API. Only the
+capture code changed, not the detector interface.
+
+Still open: the camera's mounting height and tilt, which together with the lens
+set the practical detection distance. The 15 cm cable also limits how far the
+camera can sit from the Pi. The dataset must be captured with this camera at the
+robot's real height once that is fixed.
 
 ## 6. Proposed Autonomous Operating Cycle
 
@@ -107,7 +117,7 @@ captured at the robot's real camera height once that is fixed.
 | Component / subsystem | Quantity / notes | Preliminary budget |
 |---|---|---:|
 | Raspberry Pi 5 | 1 central computer | $80–$100 |
-| Camera | 1; compatible with RP5 | $20–$50 |
+| Camera | 1; Raspberry Pi Camera Module 3 Wide (IMX708, 120°, autofocus), CSI, 15 cm FFC | Selected |
 | Raspberry Pi AI HAT+ 2 | 1; Hailo-10H NPU (40 TOPS) for on-robot YOLO inference | Acquired |
 | MicroSD / storage | 1 | $10–$20 |
 | Power regulation | Logic rail + appropriate converters | $15–$30 |
@@ -138,7 +148,7 @@ captured at the robot's real camera height once that is fixed.
 
 The RP5 is the high-level computer. A custom KiCad PCB can provide connectors, power distribution, motor-driver interfaces, sensor connections, charging/docking interfaces, and other supporting electronics. This preserves a meaningful embedded-systems and PCB-design component without requiring the entire project to be built around a more difficult embedded processor.
 
-The exact motor drivers, motors, battery chemistry, charging architecture, sensors, camera, and docking contacts remain to be selected. These choices should be based on measured or estimated robot mass, motor current, wheel size, terrain, desired speed, battery capacity, and charging time.
+The exact motor drivers, motors, battery chemistry, charging architecture, sensors, and docking contacts remain to be selected (the camera is chosen; see section 5). These choices should be based on measured or estimated robot mass, motor current, wheel size, terrain, desired speed, battery capacity, and charging time.
 
 ## 10. Project Priorities
 
@@ -159,7 +169,7 @@ The capstone team consists of four members: Will (team leader), Micah (computer/
 ## 12. Decisions Still Needed
 
 - Exact Raspberry Pi 5 model / RAM configuration.
-- Camera model and mounting position (sets the detection range; see section 5).
+- Camera mounting height, tilt, and position relative to the Pi (15 cm cable); the camera model is settled (see section 5).
 - Motor voltage, torque, RPM, and current requirements.
 - Four motor-driver models and whether each driver handles one or multiple motors.
 - Battery voltage, capacity, chemistry, and connector.

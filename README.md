@@ -21,7 +21,7 @@ The planned operating cycle:
 | Subsystem | Direction |
 |---|---|
 | Computer | Raspberry Pi 5 |
-| Vision | USB camera + YOLO11n on a Raspberry Pi AI HAT+ 2 (Hailo-10H NPU), with a classical-CV fallback |
+| Vision | Raspberry Pi Camera Module 3 Wide (CSI, 120°) + YOLO11n on a Raspberry Pi AI HAT+ 2 (Hailo-10H NPU), with a classical-CV fallback |
 | Electronics | Custom KiCad PCB for power distribution, motor-driver interfaces, and charging/docking |
 | Drive | Four-wheel drive, with motor power kept on a separate rail from logic power |
 | Base station | Charging dock + golf-ball stacker |
@@ -52,7 +52,8 @@ cd ball_detection_algo
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python list_cameras.py                                     # find the USB webcam index
-python run_webcam.py --camera 1                            # classical backend
+python run_webcam.py --camera 1                            # classical backend, laptop USB webcam
+python run_webcam.py --camera csi                          # on the robot: Pi Camera Module 3 Wide
 ```
 
 For the YOLO backend, Pi/Hailo setup, calibration, and training a custom model, see **[`ball_detection_algo/README.md`](ball_detection_algo/README.md)**.
