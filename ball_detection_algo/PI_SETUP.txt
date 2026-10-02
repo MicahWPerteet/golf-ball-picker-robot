@@ -1,0 +1,64 @@
+RASPBERRY PI 5 SETUP - ball_detection_algo
+===========================================
+(Summarized from README.md, which has the full details.)
+
+Use 64-bit Raspberry Pi OS.
+
+
+1. PI: GET THE CODE
+-------------------
+git clone https://github.com/MicahWPerteet/golf-ball-picker-robot.git
+cd golf-ball-picker-robot/ball_detection_algo
+
+
+2. PI: INSTALL THE HAILO RUNTIME FOR THE AI HAT+ 2 (once)
+---------------------------------------------------------
+sudo apt update && sudo apt full-upgrade
+sudo apt install dkms hailo-h10-all     # NOT hailo-all (that one is for Hailo-8/8L)
+sudo reboot
+hailortcli fw-control identify          # should report Hailo-10H
+
+
+3. PI: CREATE THE VENV
+----------------------
+It needs --system-site-packages so it can see the hailo_platform package from apt.
+
+python3 -m venv --system-site-packages .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+.venv/bin/pip install -r requirements-yolo.txt
+.venv/bin/python -c "import hailo_platform"   # must succeed
+
+For the classical backend only, requirements.txt is enough. You can skip
+steps 2, 4 and 5.
+
+
+4. LAPTOP: COMPILE THE HEF (Linux x86_64 only, never on the Pi)
+---------------------------------------------------------------
+- Download the DFC 5.x wheel from the Hailo Developer Zone (free account).
+- The wheel's cpXY tag says which Python version it needs. Arch ships only the
+  newest Python, so you'll probably need `uv python install 3.X` or pyenv.
+
+python3.X -m venv .venv-dfc
+.venv-dfc/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+.venv-dfc/bin/pip install -r requirements-yolo.txt ~/Downloads/hailo_dataflow_compiler-*.whl
+.venv-dfc/bin/python export_hailo.py        # -> yolo11n_hailo_model/
+scp -r yolo11n_hailo_model <user>@<pi>:~/golf-ball-picker-robot/ball_detection_algo/
+
+Copy the WHOLE directory, because metadata.yaml must stay next to the .hef.
+
+
+5. PI: RUN IT
+-------------
+.venv/bin/python run_webcam.py --camera 0 --backend yolo --model yolo11n_hailo_model
+
+- The startup line should print hailo=True.
+- On the Pi the USB camera is usually index 0. If it isn't, run list_cameras.py
+  yourself in the Pi's terminal. It's interactive and won't work in the background.
+- On a Pi with no monitor, add --no-display (and --save out.jpg to write the
+  latest annotated frame).
+- Classical backend:
+    .venv/bin/python calibrate.py --camera 0
+    .venv/bin/python run_webcam.py --camera 0 --params params.json
+  Calibrate on the Pi itself, because params.json is specific to the camera
+  and lighting.

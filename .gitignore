@@ -46,3 +46,7 @@ captures/
 *.hef
 runs/
 datasets/
+
+# --- Hailo DFC logs ---
+# Written to the working directory by export_hailo.py's compiler run.
+*.log
