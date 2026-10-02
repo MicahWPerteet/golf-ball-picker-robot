@@ -28,7 +28,7 @@ selected with `--camera csi`. The laptop uses any USB webcam, selected by index.
 | `yolo_detector.py` | `YoloDetector`, the neural backend. A callable object, because a model must be loaded once and reused. |
 | `backends.py` | `make_detector(...)` factory plus the shared CLI flags. The only module importing both detectors. |
 | `camera.py` | Opens the camera: the Pi CSI camera via Picamera2 (`--camera csi`), or a USB webcam via OpenCV with the right backend per OS. |
-| `list_cameras.py` | Probe tool to find which index is the USB webcam (dev laptop; the CSI camera is just `csi`). |
+| `list_cameras.py` | Probe tool: lists the Pi CSI camera (and its `--camera csi` flag) and finds which index is the USB webcam. |
 | `calibrate.py` | **Classical auto-tune**: box a few real golf balls and it computes thresholds. |
 | `tune.py` | Live trackbar tuner for hand-adjusting classical thresholds. |
 | `run_webcam.py` | Main live detector on the camera feed. |

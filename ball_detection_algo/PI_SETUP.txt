@@ -15,19 +15,21 @@ cd golf-ball-picker-robot/ball_detection_algo
 ---------------------------------------------------------
 sudo apt update && sudo apt full-upgrade
 sudo apt install dkms hailo-h10-all     # NOT hailo-all (that one is for Hailo-8/8L)
+sudo apt install python3-picamera2     # CSI camera access (apt-only, not pip)
 sudo reboot
 hailortcli fw-control identify          # should report Hailo-10H
 
 
 3. PI: CREATE THE VENV
 ----------------------
-It needs --system-site-packages so it can see the hailo_platform package from apt.
+It needs --system-site-packages so it can see hailo_platform and picamera2 from apt.
 
 python3 -m venv --system-site-packages .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
 .venv/bin/pip install -r requirements-yolo.txt
 .venv/bin/python -c "import hailo_platform"   # must succeed
+.venv/bin/python -c "import picamera2"        # must succeed
 
 For the classical backend only, requirements.txt is enough. You can skip
 steps 2, 4 and 5.
@@ -50,15 +52,17 @@ Copy the WHOLE directory, because metadata.yaml must stay next to the .hef.
 
 5. PI: RUN IT
 -------------
-.venv/bin/python run_webcam.py --camera 0 --backend yolo --model yolo11n_hailo_model
+.venv/bin/python run_webcam.py --camera csi --backend yolo --model yolo11n_hailo_model
 
 - The startup line should print hailo=True.
-- On the Pi the USB camera is usually index 0. If it isn't, run list_cameras.py
-  yourself in the Pi's terminal. It's interactive and won't work in the background.
+- The robot camera (Camera Module 3 Wide on the CSI ribbon) is --camera csi.
+  It is NOT a numbered index: the Pi 5 exposes CSI cameras only through
+  libcamera, so --camera 0 finds nothing. Check it with `rpicam-hello --list-cameras`.
+- A USB webcam instead would be --camera 0 (list_cameras.py finds the index).
 - On a Pi with no monitor, add --no-display (and --save out.jpg to write the
   latest annotated frame).
 - Classical backend:
-    .venv/bin/python calibrate.py --camera 0
-    .venv/bin/python run_webcam.py --camera 0 --params params.json
+    .venv/bin/python calibrate.py --camera csi
+    .venv/bin/python run_webcam.py --camera csi --params params.json
   Calibrate on the Pi itself, because params.json is specific to the camera
   and lighting.
